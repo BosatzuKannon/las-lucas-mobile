@@ -2,6 +2,7 @@
   "expo": {
     "name": "las-lucas-mobile",
     "slug": "las-lucas-mobile",
+    "scheme": "laslucas",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -18,7 +19,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.bosatzu.laslucasmobile",
-      "versionCode": 4
+      "versionCode": 5
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -27,6 +28,9 @@
       "eas": {
         "projectId": "a8520351-53ec-4759-839b-07b46e7b1846"
       }
-    }
+    },
+    "plugins": [
+      "expo-web-browser"
+    ]
   }
 }
