@@ -17,7 +17,8 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.bosatzu.laslucasmobile"
+      "package": "com.bosatzu.laslucasmobile",
+      "versionCode": 4
     },
     "web": {
       "favicon": "./assets/favicon.png"
