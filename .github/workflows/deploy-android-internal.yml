@@ -9,11 +9,6 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    # Descomenta y ajusta estas variables de entorno si tu app las necesita para compilar
-    # env:
-    #   EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
-    #   EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
-    #   EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -60,7 +55,7 @@ jobs:
       - name: Setup Ruby for Fastlane
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.2'
+          ruby-version: '3.3'
           bundler-cache: true
 
       - name: Fastlane - Upload to Google Play
@@ -69,16 +64,8 @@ jobs:
           fastlane run upload_to_play_store \
             track:internal \
             aab:android/app/build/outputs/bundle/release/app-release.aab \
-            mapping:android/app/build/outputs/mapping/release/mapping.txt \
             json_key:google-play.json \
             package_name:com.bosatzu.laslucasmobile \
             skip_upload_metadata:true \
             skip_upload_images:true \
             skip_upload_screenshots:true
-
-      - name: Save ProGuard Mapping Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: proguard-mapping
-          path: android/app/build/outputs/mapping/release/mapping.txt
-          retention-days: 30
