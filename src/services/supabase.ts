@@ -109,5 +109,7 @@ export function supabaseUserToAuthUser(user: User): AuthUser {
     avatarUrl,
     status: 'ACTIVE',
     balanceLucas: 0,
+    isPro: meta.isPro === true || meta.is_pro === true,
+    isVerified: meta.isVerified === true || meta.is_verified === true,
   };
 }

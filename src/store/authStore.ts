@@ -9,6 +9,8 @@ export type AuthUser = {
   avatarUrl: string | null;
   status: string;
   balanceLucas: number;
+  isPro: boolean;
+  isVerified: boolean;
 };
 
 type AuthState = {

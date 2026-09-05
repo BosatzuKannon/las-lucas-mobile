@@ -58,6 +58,20 @@ const palette = {
   white: '#FFFFFF',
   black: '#000000',
   transparent: 'transparent',
+
+  /** Profile spec (views/profile.md) */
+  neonGreen: '#00FF00',
+  profileEmail: '#A0A0A0',
+  profileCardBg: '#1A1A1F',
+  profileLabel: '#808080',
+  profileFeaturedBg: '#121217',
+  profileItemBg: '#16161C',
+  profileIconCircle: '#22222A',
+  profileSubtitle: '#888888',
+  logoutBorder: '#8B0000',
+  logoutAccent: '#FF0055',
+  footerMuted: '#8A8A93',
+  disclaimerGray: '#5A5A62',
 } as const;
 
 export default palette;
