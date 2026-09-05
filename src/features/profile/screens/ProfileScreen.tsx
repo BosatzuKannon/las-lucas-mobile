@@ -19,6 +19,12 @@ type MenuItem = {
 
 const MENU_ITEMS: MenuItem[] = [
   {
+    key: 'recharge',
+    title: 'Recargar Saldo',
+    subtitle: 'Añade fondos a tu cuenta',
+    icon: 'cash-plus',
+  },
+  {
     key: 'information',
     title: 'Información',
     subtitle: 'Datos de tu cuenta',
@@ -87,11 +93,9 @@ export function ProfileScreen() {
           <View style={styles.header}>
             <View style={styles.avatarContainer}>
               {avatarUrl ? (
-                <View style={styles.avatarRing}>
-                  <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
-                </View>
+                <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
               ) : (
-                <View style={[styles.avatarRing, styles.avatarFallback]}>
+                <View style={[styles.avatarImage, styles.avatarFallback]}>
                   <Text style={styles.avatarInitial}>{name.charAt(0).toUpperCase()}</Text>
                 </View>
               )}
@@ -106,7 +110,7 @@ export function ProfileScreen() {
               <Text style={styles.nameText}>{name}</Text>
               {isVerified ? (
                 <View style={styles.verifyBadge}>
-                  <Text style={styles.verifyCheck}>✓</Text>
+                  <MaterialCommunityIcons name="check" size={12} color={palette.white} />
                 </View>
               ) : null}
             </View>
@@ -128,7 +132,6 @@ export function ProfileScreen() {
             style={({ pressed }) => [styles.featuredItem, pressed && styles.pressedDown]}
             onPress={() => {}}
           >
-            <View pointerEvents="none" style={styles.featuredInnerRing} />
             <View style={styles.featuredIconWrap}>
               <MaterialCommunityIcons name="wallet" size={26} color={palette.black} />
             </View>
@@ -146,7 +149,7 @@ export function ProfileScreen() {
             </View>
           </Pressable>
 
-          {/* Standard menu items */}
+          {/* Standard menu items (including Recargar Saldo) */}
           {MENU_ITEMS.map((item) => (
             <Pressable
               key={item.key}
@@ -231,26 +234,19 @@ const styles = StyleSheet.create({
     borderRadius: 45,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: palette.profileIconCircle,
-    borderWidth: 4,
-    borderColor: 'rgba(0, 255, 0, 0.3)',
+    backgroundColor: '#000000',
+    borderWidth: 1.5,
+    borderColor: palette.neonGreen,
     shadowColor: palette.neonGreen,
     shadowOffset: { width: 0, height: 0 },
-    shadowRadius: 14,
-    shadowOpacity: 0.8,
-    elevation: 15,
-  },
-  avatarRing: {
-    flex: 1,
-    width: '100%',
-    borderRadius: 41,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 255, 0, 0.55)',
-    overflow: 'hidden',
+    shadowOpacity: 0.9,
+    shadowRadius: 25,
+    elevation: 20,
   },
   avatarImage: {
     width: '100%',
     height: '100%',
+    borderRadius: 45,
   },
   avatarFallback: {
     alignItems: 'center',
@@ -263,18 +259,19 @@ const styles = StyleSheet.create({
   },
   proBadge: {
     position: 'absolute',
-    bottom: -10,
+    bottom: -12,
     alignSelf: 'center',
-    borderRadius: 999,
-    paddingHorizontal: 10,
+    borderRadius: 12,
+    paddingHorizontal: 12,
     paddingVertical: 4,
     backgroundColor: palette.neonGreen,
+    zIndex: 10,
   },
   proBadgeText: {
     color: palette.black,
-    fontSize: 10,
-    fontWeight: '800',
-    fontFamily: 'Inter_800ExtraBold',
+    fontSize: 11,
+    fontWeight: '900',
+    fontFamily: 'Inter_900Black',
     letterSpacing: 0.4,
   },
   nameRow: {
@@ -285,40 +282,39 @@ const styles = StyleSheet.create({
   },
   nameText: {
     color: palette.white,
-    fontSize: 22,
+    fontSize: 28,
     fontWeight: '900',
     fontFamily: 'Inter_900Black',
+    letterSpacing: -0.5,
   },
   verifyBadge: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     marginLeft: 6,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: palette.neonGreen,
   },
-  verifyCheck: {
-    color: palette.white,
-    fontSize: 10,
-    fontWeight: '800',
-    lineHeight: 12,
-  },
   emailText: {
     marginTop: 4,
     color: palette.profileEmail,
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: 'Inter_400Regular',
     textAlign: 'center',
   },
   balanceCard: {
-    marginTop: 24,
-    borderRadius: 16,
-    padding: 16,
+    marginTop: 30,
+    marginBottom: 14,
+    borderRadius: 24,
+    padding: 20,
+    opacity: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: palette.profileCardBg,
+    backgroundColor: palette.profileItemBg,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.10)',
   },
   balanceLeft: {
     flexDirection: 'row',
@@ -333,39 +329,30 @@ const styles = StyleSheet.create({
   },
   balanceAmount: {
     color: palette.neonGreen,
-    fontSize: 16,
-    fontFamily: 'Inter_700Bold',
+    fontSize: 18,
+    fontWeight: '900',
+    fontFamily: 'Inter_900Black',
   },
   featuredItem: {
-    marginTop: 24,
-    marginBottom: 12,
-    borderRadius: 20,
-    padding: 16,
+    marginBottom: 14,
+    borderRadius: 24,
+    padding: 20,
+    opacity: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: palette.profileFeaturedBg,
-    borderWidth: 4,
-    borderColor: 'rgba(0, 255, 0, 0.3)',
+    borderWidth: 1.5,
+    borderColor: palette.neonGreen,
     shadowColor: palette.neonGreen,
     shadowOffset: { width: 0, height: 0 },
-    shadowRadius: 14,
-    shadowOpacity: 0.8,
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
     elevation: 15,
   },
-  featuredInnerRing: {
-    position: 'absolute',
-    top: 3,
-    left: 3,
-    right: 3,
-    bottom: 3,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 255, 0, 0.55)',
-  },
   featuredIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: palette.neonGreen,
@@ -380,7 +367,7 @@ const styles = StyleSheet.create({
   },
   itemTitle: {
     color: palette.white,
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '900',
     fontFamily: 'Inter_900Black',
   },
@@ -393,9 +380,9 @@ const styles = StyleSheet.create({
   },
   instantBadgeText: {
     color: palette.black,
-    fontSize: 8.5,
-    fontWeight: '800',
-    fontFamily: 'Inter_800ExtraBold',
+    fontSize: 9,
+    fontWeight: '900',
+    fontFamily: 'Inter_900Black',
     letterSpacing: 0.3,
   },
   featuredSubtitle: {
@@ -413,17 +400,20 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.45)',
   },
   standardItem: {
-    marginBottom: 12,
-    borderRadius: 20,
-    padding: 16,
+    marginBottom: 14,
+    borderRadius: 24,
+    padding: 20,
+    opacity: 1,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.10)',
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: palette.profileItemBg,
   },
   standardIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: palette.profileIconCircle,
@@ -439,24 +429,24 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.99 }],
   },
   logoutButton: {
-    marginTop: 16,
-    borderRadius: 20,
-    padding: 16,
+    marginTop: 20,
+    height: 60,
+    borderRadius: 30,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
     backgroundColor: 'rgba(0, 0, 0, 0.55)',
-    borderWidth: 1,
-    borderColor: palette.logoutBorder,
+    borderWidth: 1.5,
+    borderColor: palette.logoutAccent,
   },
   logoutText: {
     color: palette.logoutAccent,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
     fontFamily: 'Inter_700Bold',
+    marginLeft: 8,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1,
   },
   logoutDisabled: {
     opacity: 0.7,
