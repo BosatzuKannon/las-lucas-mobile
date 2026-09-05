@@ -6,6 +6,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { loadFonts } from './src/theme/fonts';
 import theme from './src/theme';
 import { RootNavigator } from './src/navigation/RootNavigator';
+import { persistAuthSession, supabase } from './src/services/supabase';
+import { useAuthStore } from './src/store/authStore';
 
 export default function App() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
@@ -14,6 +16,18 @@ export default function App() {
     loadFonts()
       .then(() => setFontsLoaded(true))
       .catch(() => setFontsLoaded(true));
+  }, []);
+
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        void persistAuthSession(session);
+      } else {
+        useAuthStore.getState().clearSession();
+      }
+    });
+
+    return () => data.subscription.unsubscribe();
   }, []);
 
   if (!fontsLoaded) {

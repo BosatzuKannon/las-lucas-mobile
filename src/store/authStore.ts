@@ -8,7 +8,7 @@ export type AuthUser = {
   name: string;
   avatarUrl: string | null;
   status: string;
-  balanceLucas: number;
+  balance_lucas: number;
   isPro: boolean;
   isVerified: boolean;
 };

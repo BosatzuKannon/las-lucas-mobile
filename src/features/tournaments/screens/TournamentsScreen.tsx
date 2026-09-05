@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -28,7 +28,6 @@ import {
 type RoomCard = {
   id: string;
   typeLabel: string;
-  startsIn: string;
   title: string;
   subtitle: string;
   prize: string;
@@ -60,9 +59,21 @@ function formatCOP(value: number): string {
   return `$${integer.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`;
 }
 
-function formatStartTime(startTime: string): string {
+const WAITING_WINDOW_MS = 10 * 60 * 1000;
+
+type RoomPhase = 'future' | 'waiting' | 'closed';
+
+function getRoomPhase(card: RoomCard, nowMs: number): RoomPhase {
+  const start = new Date(card.startTime).getTime();
+  if (!Number.isFinite(start)) return 'closed';
+  if (nowMs < start) return 'future';
+  if (nowMs < start + WAITING_WINDOW_MS) return 'waiting';
+  return 'closed';
+}
+
+function formatStartTime(startTime: string, nowMs: number): string {
   const start = new Date(startTime).getTime();
-  const now = Date.now();
+  const now = nowMs;
 
   if (!Number.isFinite(start)) {
     return 'El torneo ha iniciado';
@@ -98,10 +109,14 @@ function formatStartTime(startTime: string): string {
   return `Inicia el ${weekday}`;
 }
 
-function isRoomStarted(card: RoomCard): boolean {
-  const start = new Date(card.startTime).getTime();
-  if (!Number.isFinite(start)) return true;
-  return Date.now() >= start;
+function formatCloseCountdown(startTime: string, nowMs: number): string {
+  const start = new Date(startTime).getTime();
+  const closeAt = Number.isFinite(start) ? start + WAITING_WINDOW_MS : nowMs;
+  const diffMs = Math.max(0, closeAt - nowMs);
+  const totalSeconds = Math.ceil(diffMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `Cierra en: ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
 function LiveStatusDot({ active }: { active: boolean }) {
@@ -162,7 +177,6 @@ function toRoomCard(room: TournamentRoom): RoomCard {
   return {
     id: room.id,
     typeLabel,
-    startsIn: formatStartTime(room.startTime),
     title: `Copa ${typeLabel}`,
     subtitle: `${room.normalQuestionCount} preguntas • Cupo de ${room.maxPlayers} jugadores`,
     prize: `${formatCOP(room.prizePool)} COP`,
@@ -182,13 +196,24 @@ export function TournamentsScreen() {
   const user = useAuthStore((state) => state.user);
   const avatarUrl = user?.avatarUrl ?? null;
   const name = user?.name ?? 'Usuario';
-  const balance = user?.balanceLucas ?? 0;
+  const balance = user?.balance_lucas ?? 0;
 
   const [rooms, setRooms] = useState<RoomCard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [joiningId, setJoiningId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: ToastType; message: string } | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const visibleRooms = useMemo(
+    () => rooms.filter((card) => getRoomPhase(card, now) !== 'closed'),
+    [rooms, now],
+  );
 
   const loadTournaments = useCallback(async () => {
     try {
@@ -227,7 +252,7 @@ export function TournamentsScreen() {
         return;
       }
 
-      if (!isRoomStarted(card)) {
+      if (getRoomPhase(card, Date.now()) !== 'waiting') {
         setToast({
           type: 'warning',
           message: 'Podrás unirte en cuanto inicie el torneo',
@@ -242,8 +267,8 @@ export function TournamentsScreen() {
         const updatedRoom = await joinTournament(card.id, buyExtraLife);
         const cost =
           updatedRoom.entryFee + (buyExtraLife ? updatedRoom.extraLifeFee : 0);
-        const newBalance = Math.max(0, (user.balanceLucas ?? 0) - cost);
-        useAuthStore.getState().setUser({ ...user, balanceLucas: newBalance });
+        const newBalance = Math.max(0, (user.balance_lucas ?? 0) - cost);
+        useAuthStore.getState().setUser({ ...user, balance_lucas: newBalance });
         await loadTournaments();
         setToast({
           type: 'success',
@@ -311,34 +336,35 @@ export function TournamentsScreen() {
             <View style={styles.centerBox}>
               <ActivityIndicator color={palette.primary} />
             </View>
-          ) : rooms.length === 0 ? (
+          ) : visibleRooms.length === 0 ? (
             <View style={styles.centerBox}>
               <Text style={styles.emptyText}>
                 No hay torneos abiertos en este momento. Vuelve pronto.
               </Text>
             </View>
           ) : (
-            rooms.map((card) => {
-              const isJoining = joiningId === card.id;
-              const started = isRoomStarted(card);
-              const buttonsLocked = !started || Boolean(joiningId);
-              return (
-                <Pressable
-                  key={card.id}
-                  style={({ pressed }) => [
-                    styles.card,
-                    pressed && !started && styles.cardPressed,
-                  ]}
-                  onPress={() => {
-                    if (!started) {
-                      setToast({
-                        type: 'warning',
-                        message: 'Podrás unirte en cuanto inicie el torneo',
-                      });
-                    }
-                  }}
-                  disabled={started}
-                >
+            visibleRooms.map((card) => {
+                const phase = getRoomPhase(card, now);
+                const active = phase === 'waiting';
+                const isJoining = joiningId === card.id;
+                const buttonsLocked = phase !== 'waiting' || Boolean(joiningId);
+                return (
+                  <Pressable
+                    key={card.id}
+                    style={({ pressed }) => [
+                      styles.card,
+                      pressed && !active && styles.cardPressed,
+                    ]}
+                    onPress={() => {
+                      if (!active) {
+                        setToast({
+                          type: 'warning',
+                          message: 'Podrás unirte en cuanto inicie el torneo',
+                        });
+                      }
+                    }}
+                    disabled={active}
+                  >
                   {/* Card header */}
                   <View style={styles.cardHeader}>
                     <View style={[styles.typeBadge, { borderColor: card.accentColor }]}>
@@ -358,9 +384,11 @@ export function TournamentsScreen() {
                         size={12}
                         color={card.accentColor}
                       />
-                      <Text style={[styles.timeBadgeText, { color: card.accentColor }]}>
-                        {card.startsIn}
-                      </Text>
+<Text style={[styles.timeBadgeText, { color: card.accentColor }]}>
+  {active
+    ? formatCloseCountdown(card.startTime, now)
+    : formatStartTime(card.startTime, now)}
+</Text>
                     </View>
                   </View>
 
@@ -388,7 +416,7 @@ export function TournamentsScreen() {
                     <View style={styles.progressLabels}>
                       <Text style={styles.progressLabel}>Cupos confirmados</Text>
                       <View style={styles.playersBadge}>
-                        <LiveStatusDot active={started} />
+                        <LiveStatusDot active={active} />
                         <Text style={styles.progressLabel}>{card.spotsText}</Text>
                       </View>
                     </View>
@@ -411,8 +439,8 @@ export function TournamentsScreen() {
                       style={({ pressed }) => [
                         styles.primaryButton,
                         { backgroundColor: card.accentColor },
-                        !started && styles.buttonInactive,
-                        pressed && started && !isJoining && styles.pressedDown,
+                        !active && styles.buttonInactive,
+                        pressed && active && !isJoining && styles.pressedDown,
                         isJoining && styles.buttonDisabled,
                       ]}
                       onPress={() => void handleJoin(card, false)}
@@ -430,8 +458,8 @@ export function TournamentsScreen() {
                     <Pressable
                       style={({ pressed }) => [
                         styles.extraLifeButton,
-                        !started && styles.buttonInactive,
-                        pressed && started && !isJoining && styles.pressedDown,
+                        !active && styles.buttonInactive,
+                        pressed && active && !isJoining && styles.pressedDown,
                       ]}
                       onPress={() => void handleJoin(card, true)}
                       disabled={buttonsLocked}

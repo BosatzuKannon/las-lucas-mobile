@@ -58,6 +58,88 @@ export async function persistAuthSession(session: Session | null): Promise<void>
   useAuthStore
     .getState()
     .setSession(session.access_token, supabaseUserToAuthUser(session.user));
+
+  await refreshUserFromDatabase(session.user.id);
+  subscribeToUserChanges(session.user.id);
+}
+
+type DbUserRow = {
+  id: string;
+  email: string;
+  name: string;
+  avatar_url: string | null;
+  status: string;
+  balance_lucas: number;
+  is_pro: boolean;
+  is_verified: boolean;
+};
+
+/** Fetches the latest users row so balance_lucas is reflected in Zustand. */
+export async function refreshUserFromDatabase(userId: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('users')
+    .select(
+      'id, email, name, avatar_url, status, balance_lucas, is_pro, is_verified',
+    )
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return;
+  }
+
+  const current = useAuthStore.getState().user;
+  if (current) {
+    useAuthStore.getState().setUser({
+      ...current,
+      balance_lucas: data.balance_lucas,
+    });
+  }
+}
+
+const subscribedUserIds = new Set<string>();
+
+/** Subscribes to live UPDATEs of the users row to keep the balance in sync. */
+export function subscribeToUserChanges(userId: string): void {
+  console.log('Realtime UserID:', userId);
+
+  if (!userId || typeof userId !== 'string') {
+    console.warn('Realtime: skipping subscription, no valid userId', userId);
+    return;
+  }
+
+  if (subscribedUserIds.has(userId)) {
+    return;
+  }
+  subscribedUserIds.add(userId);
+
+  const filter = `id=eq.${userId}`;
+  console.log('Realtime filter:', filter);
+
+  const channel = supabase
+    .channel('public:users')
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'users',
+        filter,
+      },
+      (payload) => {
+        const row = payload.new as Partial<DbUserRow>;
+        const current = useAuthStore.getState().user;
+
+        if (!current || !row.id) {
+          return;
+        }
+
+        useAuthStore
+          .getState()
+          .setUser({ ...current, balance_lucas: row.balance_lucas ?? current.balance_lucas });
+      },
+    )
+    .subscribe();
 }
 
 export async function replaceSessionFromUri(url: string): Promise<boolean> {
@@ -108,7 +190,7 @@ export function supabaseUserToAuthUser(user: User): AuthUser {
     name,
     avatarUrl,
     status: 'ACTIVE',
-    balanceLucas: 0,
+    balance_lucas: 0,
     isPro: meta.isPro === true || meta.is_pro === true,
     isVerified: meta.isVerified === true || meta.is_verified === true,
   };

@@ -2,6 +2,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Image, StyleSheet, Text, View } from 'react-native';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useAuthStore } from '../store/authStore';
 import { LoginScreen } from '../features/auth/screens/LoginScreen';
 import { TournamentsScreen } from '../features/tournaments/screens/TournamentsScreen';
@@ -54,7 +55,12 @@ function MainTabs() {
       <Tab.Screen
         name="Torneos"
         component={TournamentsScreen}
-        options={{ tabBarLabel: 'Torneos' }}
+        options={{
+          tabBarLabel: 'Torneos',
+          tabBarIcon: ({ color }) => (
+            <MaterialCommunityIcons name="gamepad-variant" size={24} color={color} />
+          ),
+        }}
       />
       <Tab.Screen
         name="Perfil"

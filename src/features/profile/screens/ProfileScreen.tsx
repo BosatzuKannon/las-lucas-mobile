@@ -63,7 +63,7 @@ export function ProfileScreen() {
   const name = user?.name ?? 'Usuario';
   const email = user?.email ?? '';
   const avatarUrl = user?.avatarUrl ?? null;
-  const balance = user?.balanceLucas ?? 0;
+  const balance = user?.balance_lucas ?? 0;
   const isPro = user?.isPro ?? false;
   const isVerified = user?.isVerified ?? false;
 
