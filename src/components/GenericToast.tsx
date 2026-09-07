@@ -15,11 +15,11 @@ export type ToastType = 'info' | 'success' | 'error' | 'warning';
 type Props = {
   type?: ToastType;
   message?: string | null;
-  duration?: number;
   onHide?: () => void;
 };
 
 const TOAST_ANIMATION_MS = 240;
+const TOAST_DURATION_MS = 3000;
 
 /**
  * GenericToast
@@ -30,7 +30,6 @@ const TOAST_ANIMATION_MS = 240;
 export function GenericToast({
   type = 'info',
   message,
-  duration = 3000,
   onHide,
 }: Props) {
   const insets = useSafeAreaInsets();
@@ -38,6 +37,9 @@ export function GenericToast({
 
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(-24)).current;
+
+  const onHideRef = useRef(onHide);
+  onHideRef.current = onHide;
 
   const { color, backgroundColor, borderColor } = useMemo(
     () => getToastColors(type),
@@ -78,19 +80,16 @@ export function GenericToast({
           easing: Easing.in(Easing.cubic),
           useNativeDriver: true,
         }),
-      ]).start(({ finished }) => {
-        if (finished) {
-          onHide?.();
-        }
-      });
-    }, duration);
+      ]).start();
+      onHideRef.current?.();
+    }, TOAST_DURATION_MS);
 
     return () => {
       clearTimeout(timer);
       opacity.stopAnimation();
       translateY.stopAnimation();
     };
-  }, [visible, duration, onHide, opacity, translateY]);
+  }, [visible, message, opacity, translateY]);
 
   if (!visible) {
     return null;
@@ -125,31 +124,33 @@ function getToastColors(type: ToastType): {
   backgroundColor: ColorValue;
   borderColor: ColorValue;
 } {
+  // Solid (non-transparent) surfaces so the message stays readable over any
+  // background. Neon accent colors keep the design system consistent.
   switch (type) {
     case 'success':
       return {
         color: palette.secondary,
-        backgroundColor: 'rgba(0, 255, 127, 0.14)',
-        borderColor: 'rgba(0, 255, 127, 0.45)',
+        backgroundColor: '#0B1C12',
+        borderColor: palette.secondary,
       };
     case 'error':
       return {
         color: palette.danger,
-        backgroundColor: 'rgba(255, 77, 77, 0.14)',
-        borderColor: 'rgba(255, 77, 77, 0.45)',
+        backgroundColor: '#220B0B',
+        borderColor: palette.danger,
       };
     case 'warning':
       return {
         color: palette.tertiary,
-        backgroundColor: 'rgba(255, 215, 0, 0.14)',
-        borderColor: 'rgba(255, 215, 0, 0.45)',
+        backgroundColor: '#201806',
+        borderColor: palette.tertiary,
       };
     case 'info':
     default:
       return {
         color: palette.primary,
-        backgroundColor: 'rgba(255, 0, 127, 0.14)',
-        borderColor: 'rgba(255, 0, 127, 0.45)',
+        backgroundColor: '#1E0A14',
+        borderColor: palette.primary,
       };
   }
 }

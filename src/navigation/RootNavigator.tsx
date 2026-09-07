@@ -4,11 +4,16 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useAuthStore } from '../store/authStore';
+import { useToastStore } from '../store/toastStore';
+import { GenericToast } from '../components/GenericToast';
 import { LoginScreen } from '../features/auth/screens/LoginScreen';
 import { TournamentsScreen } from '../features/tournaments/screens/TournamentsScreen';
+import { WaitingRoomScreen } from '../features/tournaments/screens/WaitingRoomScreen';
+import { ActiveGameScreen } from '../features/tournaments/screens/ActiveGameScreen';
 import { ProfileScreen } from '../features/profile/screens/ProfileScreen';
+import type { RootStackParamList } from './types';
 
-const Stack = createNativeStackNavigator();
+const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator();
 
 function ProfileTabIcon({ color }: { color: string }) {
@@ -75,6 +80,28 @@ function MainTabs() {
 }
 
 /**
+ * GlobalToastHost
+ * Renders the global toast store at the navigator root so toasts survive
+ * screen transitions (debit confirmation, tournament cancellation, etc.).
+ */
+function GlobalToastHost() {
+  const toast = useToastStore((s) => s.toast);
+
+  if (!toast) {
+    return null;
+  }
+
+  return (
+    <GenericToast
+      key={toast.key}
+      type={toast.type}
+      message={toast.message}
+      onHide={() => useToastStore.getState().hideToast()}
+    />
+  );
+}
+
+/**
  * RootNavigator
  * Auth-aware router: no token → LoginScreen; token → protected Tab navigator.
  */
@@ -85,11 +112,24 @@ export function RootNavigator() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {accessToken ? (
-          <Stack.Screen name="Main" component={MainTabs} />
+          <>
+            <Stack.Screen name="Main" component={MainTabs} />
+            <Stack.Screen
+              name="WaitingRoom"
+              component={WaitingRoomScreen}
+              options={{ gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="ActiveGame"
+              component={ActiveGameScreen}
+              options={{ gestureEnabled: false }}
+            />
+          </>
         ) : (
           <Stack.Screen name="Login" component={LoginScreen} />
         )}
       </Stack.Navigator>
+      <GlobalToastHost />
     </NavigationContainer>
   );
 }

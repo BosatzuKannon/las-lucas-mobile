@@ -14,19 +14,25 @@ import {
 import { Text } from 'react-native-paper';
 import Constants from 'expo-constants';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { BaseLayout } from '../../../components/BaseLayout';
 import { GenericToast } from '../../../components/GenericToast';
 import type { ToastType } from '../../../components/GenericToast';
 import palette from '../../../theme/colors';
 import { useAuthStore } from '../../../store/authStore';
+import { useToastStore } from '../../../store/toastStore';
+import type { RootStackParamList } from '../../../navigation/types';
 import {
   getTournaments,
   joinTournament,
+  subscribeToRoomChanges,
   type TournamentRoom,
 } from '../../../services/tournaments.service';
 
 type RoomCard = {
   id: string;
+  status: TournamentRoom['status'];
   typeLabel: string;
   title: string;
   subtitle: string;
@@ -38,6 +44,8 @@ type RoomCard = {
   progress: DimensionValue;
   accentColor: string;
   startTime: string;
+  rawEntryFee: number;
+  rawExtraLifeFee: number;
 };
 
 const TYPE_LABELS: Record<TournamentRoom['tournamentType'], string> = {
@@ -59,16 +67,16 @@ function formatCOP(value: number): string {
   return `$${integer.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`;
 }
 
-const WAITING_WINDOW_MS = 10 * 60 * 1000;
+type RoomPhase = 'scheduled' | 'waiting' | 'closed';
 
-type RoomPhase = 'future' | 'waiting' | 'closed';
-
-function getRoomPhase(card: RoomCard, nowMs: number): RoomPhase {
-  const start = new Date(card.startTime).getTime();
-  if (!Number.isFinite(start)) return 'closed';
-  if (nowMs < start) return 'future';
-  if (nowMs < start + WAITING_WINDOW_MS) return 'waiting';
+function getRoomPhase(card: RoomCard): RoomPhase {
+  if (card.status === 'WAITING') return 'waiting';
+  if (card.status === 'SCHEDULED') return 'scheduled';
   return 'closed';
+}
+
+function isJoinable(card: RoomCard): boolean {
+  return getRoomPhase(card) === 'waiting';
 }
 
 function formatStartTime(startTime: string, nowMs: number): string {
@@ -111,8 +119,7 @@ function formatStartTime(startTime: string, nowMs: number): string {
 
 function formatCloseCountdown(startTime: string, nowMs: number): string {
   const start = new Date(startTime).getTime();
-  const closeAt = Number.isFinite(start) ? start + WAITING_WINDOW_MS : nowMs;
-  const diffMs = Math.max(0, closeAt - nowMs);
+  const diffMs = Math.max(0, (Number.isFinite(start) ? start : nowMs) - nowMs);
   const totalSeconds = Math.ceil(diffMs / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
@@ -176,6 +183,7 @@ function toRoomCard(room: TournamentRoom): RoomCard {
 
   return {
     id: room.id,
+    status: room.status,
     typeLabel,
     title: `Copa ${typeLabel}`,
     subtitle: `${room.normalQuestionCount} preguntas • Cupo de ${room.maxPlayers} jugadores`,
@@ -187,12 +195,16 @@ function toRoomCard(room: TournamentRoom): RoomCard {
     progress: `${pct}%`,
     accentColor: TYPE_ACCENTS[room.tournamentType] ?? '#FF0055',
     startTime: room.startTime,
+    rawEntryFee: room.entryFee,
+    rawExtraLifeFee: room.extraLifeFee,
   };
 }
 
 const appVersion = Constants.expoConfig?.version || '1.0.0';
 
 export function TournamentsScreen() {
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const user = useAuthStore((state) => state.user);
   const avatarUrl = user?.avatarUrl ?? null;
   const name = user?.name ?? 'Usuario';
@@ -201,7 +213,10 @@ export function TournamentsScreen() {
   const [rooms, setRooms] = useState<RoomCard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [joiningId, setJoiningId] = useState<string | null>(null);
+  const [joining, setJoining] = useState<{
+    roomId: string;
+    variant: 'normal' | 'extra';
+  } | null>(null);
   const [toast, setToast] = useState<{ type: ToastType; message: string } | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
@@ -211,8 +226,21 @@ export function TournamentsScreen() {
   }, []);
 
   const visibleRooms = useMemo(
-    () => rooms.filter((card) => getRoomPhase(card, now) !== 'closed'),
-    [rooms, now],
+    () =>
+      rooms
+        .filter(
+          (card) =>
+            card.status === 'SCHEDULED' || card.status === 'WAITING',
+        )
+        .sort((a, b) => {
+          if (a.status !== b.status) {
+            return a.status === 'WAITING' ? -1 : 1;
+          }
+          return (
+            new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+          );
+        }),
+    [rooms],
   );
 
   const loadTournaments = useCallback(async () => {
@@ -233,6 +261,21 @@ export function TournamentsScreen() {
 
   useEffect(() => {
     void loadTournaments();
+
+    const unsubscribe = subscribeToRoomChanges((room) => {
+      const card = toRoomCard(room);
+      setRooms((prev) => {
+        const index = prev.findIndex((r) => r.id === card.id);
+        if (index === -1) {
+          return [...prev, card];
+        }
+        const next = [...prev];
+        next[index] = card;
+        return next;
+      });
+    });
+
+    return () => unsubscribe();
   }, [loadTournaments]);
 
   const handleRefresh = useCallback(() => {
@@ -242,7 +285,7 @@ export function TournamentsScreen() {
 
   const handleJoin = useCallback(
     async (card: RoomCard, buyExtraLife: boolean) => {
-      if (joiningId) return;
+      if (joining) return;
 
       if (!user) {
         setToast({
@@ -252,41 +295,60 @@ export function TournamentsScreen() {
         return;
       }
 
-      if (getRoomPhase(card, Date.now()) !== 'waiting') {
+      if (!isJoinable(card)) {
         setToast({
           type: 'warning',
-          message: 'Podrás unirte en cuanto inicie el torneo',
+          message:
+            getRoomPhase(card) === 'scheduled'
+              ? 'El torneo aún no ha iniciado. Espera a que se abra la sala de espera.'
+              : 'Este torneo ya no acepta inscripciones.',
         });
         return;
       }
 
-      setJoiningId(card.id);
+      const cost =
+        card.rawEntryFee + (buyExtraLife ? card.rawExtraLifeFee : 0);
+
+      if ((user.balance_lucas ?? 0) < cost) {
+        setToast({
+          type: 'error',
+          message: 'No tienes saldo disponible para participar en este torneo, debes recargar.',
+        });
+        return;
+      }
+
+      setJoining({ roomId: card.id, variant: buyExtraLife ? 'extra' : 'normal' });
       setToast(null);
 
       try {
-        const updatedRoom = await joinTournament(card.id, buyExtraLife);
-        const cost =
-          updatedRoom.entryFee + (buyExtraLife ? updatedRoom.extraLifeFee : 0);
+        await joinTournament(card.id, buyExtraLife);
         const newBalance = Math.max(0, (user.balance_lucas ?? 0) - cost);
         useAuthStore.getState().setUser({ ...user, balance_lucas: newBalance });
         await loadTournaments();
-        setToast({
-          type: 'success',
-          message: `Inscrito en "${card.title}". Nuevo saldo: ${formatCOP(newBalance)}`,
-        });
+        useToastStore
+          .getState()
+          .showToast(
+            'success',
+            `Se debitaron ${formatCOP(cost)} COP de tu saldo correctamente`,
+          );
+        navigation.navigate('WaitingRoom', { roomId: card.id });
       } catch (error) {
+        const rawMessage =
+          error instanceof Error
+            ? error.message
+            : 'No se pudo completar la inscripción.';
+        const sessionError = /token|jwt|unauthorized|expirado/i.test(rawMessage);
         setToast({
           type: 'error',
-          message:
-            error instanceof Error
-              ? error.message
-              : 'No se pudo completar la inscripción.',
+          message: sessionError
+            ? 'Tu sesión ha expirado por seguridad. Cierra sesión y vuelve a ingresar.'
+            : rawMessage,
         });
       } finally {
-        setJoiningId(null);
+        setJoining(null);
       }
     },
-    [joiningId, user, loadTournaments],
+    [joining, user, loadTournaments, navigation],
   );
 
   return (
@@ -344,10 +406,15 @@ export function TournamentsScreen() {
             </View>
           ) : (
             visibleRooms.map((card) => {
-                const phase = getRoomPhase(card, now);
-                const active = phase === 'waiting';
-                const isJoining = joiningId === card.id;
-                const buttonsLocked = phase !== 'waiting' || Boolean(joiningId);
+                const phase = getRoomPhase(card);
+                const isWaiting = phase === 'waiting';
+                const active = isJoinable(card);
+                const isJoining = joining?.roomId === card.id;
+                const isJoiningNormal =
+                  isJoining && joining?.variant === 'normal';
+                const isJoiningExtra =
+                  isJoining && joining?.variant === 'extra';
+                const buttonsLocked = !active || Boolean(joining);
                 return (
                   <Pressable
                     key={card.id}
@@ -356,14 +423,14 @@ export function TournamentsScreen() {
                       pressed && !active && styles.cardPressed,
                     ]}
                     onPress={() => {
-                      if (!active) {
+                      if (!isWaiting) {
                         setToast({
                           type: 'warning',
-                          message: 'Podrás unirte en cuanto inicie el torneo',
+                          message: 'Podrás unirte cuando la sala de espera esté abierta',
                         });
                       }
                     }}
-                    disabled={active}
+                    disabled={!isWaiting}
                   >
                   {/* Card header */}
                   <View style={styles.cardHeader}>
@@ -385,7 +452,7 @@ export function TournamentsScreen() {
                         color={card.accentColor}
                       />
 <Text style={[styles.timeBadgeText, { color: card.accentColor }]}>
-  {active
+  {isWaiting
     ? formatCloseCountdown(card.startTime, now)
     : formatStartTime(card.startTime, now)}
 </Text>
@@ -446,7 +513,7 @@ export function TournamentsScreen() {
                       onPress={() => void handleJoin(card, false)}
                       disabled={buttonsLocked}
                     >
-                      {isJoining ? (
+                      {isJoiningNormal ? (
                         <ActivityIndicator color="#000000" />
                       ) : (
                         <Text style={styles.primaryButtonText}>
@@ -464,9 +531,18 @@ export function TournamentsScreen() {
                       onPress={() => void handleJoin(card, true)}
                       disabled={buttonsLocked}
                     >
-                      <Text style={[styles.extraLifeLabel, { color: card.accentColor }]}>
-                        {card.extraLifeText}
-                      </Text>
+                      {isJoiningExtra ? (
+                        <ActivityIndicator color={card.accentColor} />
+                      ) : (
+                        <Text
+                          style={[
+                            styles.extraLifeLabel,
+                            { color: card.accentColor },
+                          ]}
+                        >
+                          {card.extraLifeText}
+                        </Text>
+                      )}
                     </Pressable>
                   </View>
                 </Pressable>
