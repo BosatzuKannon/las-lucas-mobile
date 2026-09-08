@@ -180,6 +180,15 @@ export function WaitingRoomScreen() {
     navigation.replace('ActiveGame', { roomId });
   }, [navigation, roomId]);
 
+  const handleVoting = useCallback(() => {
+    if (exitingRef.current) {
+      return;
+    }
+    exitingRef.current = true;
+    allowLeaveRef.current = true;
+    navigation.replace('CategoryVoting', { roomId });
+  }, [navigation, roomId]);
+
   const handleCanceled = useCallback(() => {
     if (exitingRef.current) {
       return;
@@ -212,6 +221,11 @@ export function WaitingRoomScreen() {
           return;
         }
 
+        if (data.status === 'VOTING') {
+          handleVoting();
+          return;
+        }
+
         if (data.status === 'ACTIVE') {
           handleActive();
           return;
@@ -238,7 +252,7 @@ export function WaitingRoomScreen() {
     return () => {
       mounted = false;
     };
-  }, [roomId, handleActive, handleCanceled]);
+  }, [roomId, handleActive, handleCanceled, handleVoting]);
 
   useEffect(() => {
     const unsubscribe = subscribeToRoomById(roomId, (updatedRoom) => {
@@ -247,6 +261,11 @@ export function WaitingRoomScreen() {
           ? { ...prev, ...updatedRoom, startTime: prev.startTime }
           : prev,
       );
+
+      if (updatedRoom.status === 'VOTING') {
+        handleVoting();
+        return;
+      }
 
       if (updatedRoom.status === 'ACTIVE') {
         handleActive();
@@ -260,7 +279,7 @@ export function WaitingRoomScreen() {
     });
 
     return () => unsubscribe();
-  }, [roomId, handleActive, handleCanceled]);
+  }, [roomId, handleActive, handleCanceled, handleVoting]);
 
   useEffect(() => {
     const unsubscribe = subscribeToRoomParticipants(

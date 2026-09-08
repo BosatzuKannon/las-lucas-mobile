@@ -9,6 +9,7 @@ import { GenericToast } from '../components/GenericToast';
 import { LoginScreen } from '../features/auth/screens/LoginScreen';
 import { TournamentsScreen } from '../features/tournaments/screens/TournamentsScreen';
 import { WaitingRoomScreen } from '../features/tournaments/screens/WaitingRoomScreen';
+import { CategoryVotingScreen } from '../features/tournaments/screens/CategoryVotingScreen';
 import { ActiveGameScreen } from '../features/tournaments/screens/ActiveGameScreen';
 import { ProfileScreen } from '../features/profile/screens/ProfileScreen';
 import type { RootStackParamList } from './types';
@@ -117,6 +118,11 @@ export function RootNavigator() {
             <Stack.Screen
               name="WaitingRoom"
               component={WaitingRoomScreen}
+              options={{ gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="CategoryVoting"
+              component={CategoryVotingScreen}
               options={{ gestureEnabled: false }}
             />
             <Stack.Screen

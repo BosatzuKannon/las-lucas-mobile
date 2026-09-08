@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore';
 export type RoomStatus =
   | 'SCHEDULED'
   | 'WAITING'
+  | 'VOTING'
   | 'ACTIVE'
   | 'FINISHED'
   | 'CANCELLED';
@@ -25,6 +26,8 @@ export type TournamentRoom = {
 };
 
 export type WaitingRoomPlayer = {
+  votedCategoryId: string | null;
+  votedAt: string | null;
   hasPurchasedExtraLife: boolean;
   isEliminated: boolean;
   user: { id: string; name: string; avatarUrl: string | null };
@@ -224,6 +227,8 @@ export type RoomParticipantRealtimeRow = {
   user_id: string;
   has_purchased_extra_life: boolean;
   is_eliminated: boolean;
+  voted_category_id: string | null;
+  voted_at: string | null;
   user_name: string;
   user_avatar_url: string | null;
 };
@@ -237,6 +242,8 @@ function mapRoomParticipantRow(
   row: RoomParticipantRealtimeRow,
 ): WaitingRoomPlayer {
   return {
+    votedCategoryId: row.voted_category_id,
+    votedAt: row.voted_at,
     hasPurchasedExtraLife: row.has_purchased_extra_life,
     isEliminated: row.is_eliminated,
     user: {
@@ -277,6 +284,60 @@ export function subscribeToRoomParticipants(
             participant: mapRoomParticipantRow(row),
           });
         }
+      },
+    )
+    .subscribe();
+
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}
+
+export type ParticipantVoteChange = {
+  userId: string;
+  oldCategoryId: string | null;
+  newCategoryId: string | null;
+  oldVotedAtMs: number | null;
+  newVotedAtMs: number | null;
+};
+
+/**
+ * Subscribes to UPDATE events of `room_participants` for a room (the votes).
+ * Every new vote rewrites `voted_category_id` + `voted_at`, so this channel
+ * feeds the live rankings in the CategoryVotingScreen without refetching.
+ */
+export function subscribeToParticipantVotes(
+  roomId: string,
+  onVote: (change: ParticipantVoteChange) => void,
+): () => void {
+  const channel = supabase
+    .channel(`public:room_participant_votes:${roomId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'room_participants',
+        filter: `room_id=eq.${roomId}`,
+      },
+      (payload) => {
+        const oldRow = (payload.old ?? null) as RoomParticipantRealtimeRow | null;
+        const newRow = (payload.new ?? null) as RoomParticipantRealtimeRow | null;
+
+        if (!newRow) {
+          return;
+        }
+
+        const oldVotedAt = oldRow?.voted_at ? new Date(oldRow.voted_at).getTime() : null;
+        const newVotedAt = newRow.voted_at ? new Date(newRow.voted_at).getTime() : null;
+
+        onVote({
+          userId: newRow.user_id,
+          oldCategoryId: oldRow?.voted_category_id ?? null,
+          newCategoryId: newRow.voted_category_id ?? null,
+          oldVotedAtMs: oldVotedAt,
+          newVotedAtMs: newVotedAt,
+        });
       },
     )
     .subscribe();
